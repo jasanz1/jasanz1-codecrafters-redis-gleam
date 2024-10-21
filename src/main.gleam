@@ -1,3 +1,4 @@
+import gleam/dict
 import commands/get_cmd
 import commands/ping_cmd
 import commands/set_cmd
@@ -7,34 +8,36 @@ import gleam/bit_array
 import gleam/bytes_builder
 import gleam/io
 import gleam/result
-
 import gleam/erlang/process
 import gleam/option.{None}
 import gleam/otp/actor
 import glisten
-
+type Context {
+  Context(  dict: dict.Dict(String, String))
+}
 pub fn main() {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   io.println("Logs from your program will appear here!")
   let assert Ok(_) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, loop)
+    glisten.handler(fn(_conn) { #(Context(dict.new()), None) }, loop)
     |> glisten.serve(6379)
 
   process.sleep_forever()
 }
 
-fn loop(msg: glisten.Message(a), state: state, conn: glisten.Connection(a)) {
+fn loop(msg: glisten.Message(a), state: Context, conn: glisten.Connection(a)) {
   let byte_message = case msg {
     glisten.Packet(x) -> x
     _ -> bytes_builder.to_bit_array(bytes_builder.from_string("Error"))
   }
 
   let message = bit_array.to_string(byte_message) |> result.unwrap("") |> decode
+  let state = Context(dict.new())
   process_message(message, state, conn)
   actor.continue(state)
 }
 
-fn process_message(msg: List(String), state: state, conn: glisten.Connection(a)) {
+fn process_message(msg: List(String), state: Context,  conn: glisten.Connection(a)) {
   let assert Ok(return) = case msg {
     [] -> [] |> Ok
     ["PING", ..rest] ->
@@ -49,15 +52,17 @@ fn process_message(msg: List(String), state: state, conn: glisten.Connection(a))
         ..process_message(rest, state, conn)
       ]
       |> Ok
-    ["SET" , key, value, ..rest] ->
+    ["SET" , key, value, ..rest] -> {
+      let #(main_dict,response) =set_cmd.set_cmd(state.dict,key ,value) |> io.debug
+      let state = Context(..state, dict: main_dict)
       [
-        glisten.send(conn, bytes_builder.from_string(set_cmd.set_cmd(key ,value) |> io.debug)),
+        glisten.send(conn, bytes_builder.from_string(response)),
         ..process_message(rest, state, conn)
       ]
-      |> Ok
+      |> Ok }
     ["GET", key, ..rest] ->
       [
-        glisten.send(conn, bytes_builder.from_string(get_cmd.get_cmd(key) |> io.debug)),
+        glisten.send(conn, bytes_builder.from_string(get_cmd.get_cmd(state.dict,key) |> io.debug)),
         ..process_message(rest, state, conn)
       ]
       |> Ok
