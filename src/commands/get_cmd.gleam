@@ -1,7 +1,5 @@
 import encoder
-pub fn get_cmd(key) -> String {
-case key {
-  "foo" -> "bar"
-  _ -> "baz"
-  } |> encoder.encode_bulk_string
+pub fn get_cmd(my_dict, key) -> String {
+  let assert Ok(value) = dict.get(my_dict, key)
+  encoder.encode_simple_string(value)
 }
