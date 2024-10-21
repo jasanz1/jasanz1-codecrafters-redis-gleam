@@ -36,6 +36,7 @@ fn loop(msg: glisten.Message(a), state: state, conn: glisten.Connection(a)) {
 }
 
 fn process_message(msg: List(String), state: state, conn: glisten.Connection(a)) {
+  io.println("Message received")
   let assert Ok(return) = case msg {
     [] -> [] |> Ok
     ["PING", ..rest] ->
