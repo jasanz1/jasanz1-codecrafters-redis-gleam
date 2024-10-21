@@ -11,7 +11,6 @@ pub fn main() {
 
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   io.println("Logs from your program will appear here!")
-  io.println(ping.ping())
   let assert Ok(_) =
   glisten.handler(fn(_conn) { #(Nil, None) }, loop )
   |> glisten.serve(6379)
