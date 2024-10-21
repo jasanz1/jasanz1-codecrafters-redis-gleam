@@ -53,7 +53,6 @@ fn process_message(msg: List(String), state: state, conn: glisten.Connection(a))
 }
 
 fn decode(msg) -> List(String) {
-  io.debug(msg)
   case msg {
     "+" <> rest -> [rest |> string.trim]
     "*" <> rest -> decode_array(rest)
@@ -64,7 +63,6 @@ fn decode(msg) -> List(String) {
 
 fn decode_array(msg: String) -> List(String) {
   let assert Ok(splitonrn) = string.split_once(msg, "\r\n")
-  io.debug(splitonrn)
   let #(size, rest) = case splitonrn {
     #(num, rest) -> #(num |> int.parse |> result.unwrap(0), rest)
   }
@@ -74,7 +72,6 @@ fn decode_array(msg: String) -> List(String) {
 
 fn build_array(msg: String, size) -> List(String) {
   let splitonrn = string.split(msg, "\r\n")
-  io.debug(splitonrn)
   let assert [first, second, ..rest] = splitonrn
   let rest = rest |> string.join("\r\n")
   case first |> string.first() {
