@@ -1,3 +1,3 @@
 pub fn ping() {
- "+PONG\r\n" 
+  "+PONG\r\n"
 }
