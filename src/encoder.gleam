@@ -1,8 +1,9 @@
-import gleam/io
-pub fn encode(msg) -> String {
-  simple_string(msg)
+import gleam/int
+import gleam/string
+pub fn encode_simple_string(msg) -> String {
+  "+" <> msg <> "\r\n"
 }
 
-fn simple_string(msg) -> String {
-  "+" <> msg <> "\r\n"
+pub fn encode_bulk_string(msg) -> String {
+  "$"<> msg |> string.length |> int.to_string <> "\r\n" <> msg <> "\r\n"
 }
