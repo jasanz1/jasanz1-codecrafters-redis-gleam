@@ -1,5 +1,6 @@
+import commands/ping_cmd
+import commands/echo_cmd
 import decoder.{decode}
-import commands/ping
 import gleam/bit_array
 import gleam/bytes_builder
 import gleam/io
@@ -36,7 +37,13 @@ fn process_message(msg: List(String), state: state, conn: glisten.Connection(a))
     [] -> [] |> Ok
     ["PING", ..rest] ->
       [
-        glisten.send(conn, bytes_builder.from_string(ping.ping())),
+        glisten.send(conn, bytes_builder.from_string(ping_cmd.ping_cmd())),
+        ..process_message(rest, state, conn)
+      ]
+      |> Ok
+    ["ECHO", echomsg, ..rest] ->
+      [
+        glisten.send(conn, bytes_builder.from_string(echo_cmd.echo_cmd(echomsg))),
         ..process_message(rest, state, conn)
       ]
       |> Ok
