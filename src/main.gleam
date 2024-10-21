@@ -1,7 +1,9 @@
 import commands/ping
 import gleam/bit_array
 import gleam/bytes_builder
+import gleam/int
 import gleam/io
+import gleam/list
 import gleam/result
 import gleam/string
 
@@ -26,11 +28,7 @@ fn loop(msg: glisten.Message(a), state: state, conn: glisten.Connection(a)) {
     _ -> bytes_builder.to_bit_array(bytes_builder.from_string("Error"))
   }
 
-  let message =
-    bit_array.to_string(byte_message)
-    |> result.unwrap("Error")
-    |> string.split(";")
-  |> io.debug 
+  let message = bit_array.to_string(byte_message) |> result.unwrap("") |> decode
   process_message(message, state, conn)
   actor.continue(state)
 }
@@ -53,3 +51,34 @@ fn process_message(msg: List(String), state: state, conn: glisten.Connection(a))
   }
   return
 }
+
+fn decode(msg) -> List(String) {
+  case msg {
+    "+" <> rest -> [rest |> string.trim]
+    "*" <> rest -> decode_array(rest) |> list.flatten
+    "$" <> rest -> decode_bulk_string(rest)
+    _ -> [msg]
+  }
+}
+
+fn decode_array(msg) {
+  let assert Ok(splitonrn) = string.split_once(msg, "\r\n")
+  let #(_size, rest) = case splitonrn {
+    #(num, rest) -> #(num |> int.parse |> result.unwrap(0), rest)
+  }
+  rest |> string.split("\r\n") |> list.map(decode(_))
+}
+fn decode_bulk_string(msg) {
+  let assert Ok(splitonrn) = string.split_once(msg, "\r\n")
+  let #(size, rest) = case splitonrn {
+    #(num, rest) -> #(num |> int.parse |> result.unwrap(0), rest)
+  }
+ [ rest |> string.trim ]
+}
+
+
+
+
+
+
+
