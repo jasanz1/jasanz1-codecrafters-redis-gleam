@@ -30,7 +30,7 @@ fn loop(msg: glisten.Message(a), state: state, conn: glisten.Connection(a)) {
     bit_array.to_string(byte_message)
     |> result.unwrap("Error")
     |> string.split(";")
-
+  |> io.debug 
   process_message(message, state, conn)
   actor.continue(state)
 }
