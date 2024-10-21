@@ -12,7 +12,7 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{Some,None}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
