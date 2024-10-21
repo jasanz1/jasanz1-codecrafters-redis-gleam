@@ -1,5 +1,5 @@
 import gleam/int
-import gleam/option
+import gleam/option.{Some,None}
 import gleam/string
 
 pub fn encode_simple_string(msg) -> String {
