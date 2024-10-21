@@ -1,4 +1,5 @@
 import gleam/int
+import gleam/option
 import gleam/string
 
 pub fn encode_simple_string(msg) -> String {
@@ -6,5 +7,9 @@ pub fn encode_simple_string(msg) -> String {
 }
 
 pub fn encode_bulk_string(msg) -> String {
-  "$" <> msg |> string.length |> int.to_string <> "\r\n" <> msg <> "\r\n"
+  case msg {
+    None -> "$-1\r\n"
+    Some(msg) ->
+      "$" <> msg |> string.length |> int.to_string <> "\r\n" <> msg <> "\r\n"
+  }
 }

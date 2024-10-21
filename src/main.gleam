@@ -1,3 +1,5 @@
+import birl
+import birl/duration
 import carpenter/table.{type Set}
 import commands/echo_cmd
 import commands/get_cmd
@@ -7,14 +9,23 @@ import decoder.{decode}
 import gleam/bit_array
 import gleam/bytes_builder
 import gleam/erlang/process
+import gleam/int
 import gleam/io
+import gleam/list
 import gleam/option.{None}
 import gleam/otp/actor
 import gleam/result
+import gleam/string
 import glisten
 
 type State =
-  Set(String, String)
+  Set(String, Entry)
+
+type Entry =
+  #(String, Expiry)
+
+type Expiry =
+  #(birl.Time, option.Option(Int))
 
 pub fn main() {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -51,7 +62,7 @@ fn process_message(
 ) -> State {
   let send = fn(x) { glisten.send(conn, bytes_builder.from_string(x)) }
 
-  let assert Ok(state) = case msg {
+  let assert Ok(state) = case msg |> list.map(string.uppercase(_)) {
     [] -> state |> Ok
     ["PING", ..rest] -> {
       let assert Ok(_) = send(ping_cmd.ping_cmd() |> io.debug)
@@ -61,13 +72,27 @@ fn process_message(
       let assert Ok(_) = send(echo_cmd.echo_cmd(echomsg) |> io.debug)
       state |> Ok
     }
+    ["SET", key, value, "PX", expiration, ..rest] -> {
+      let response =
+        set_cmd.set_cmd(
+          state,
+          key,
+          #(value, #(
+            birl.now(),
+            Some(expiration |> int.parse() |> result.unwrap(0)),
+          )),
+        )
+      let assert Ok(_) = send(response |> io.debug)
+      state |> Ok
+    }
     ["SET", key, value, ..rest] -> {
-      let response = set_cmd.set_cmd(state, key, value)
+      let response = set_cmd.set_cmd(state, key, #(value, #(birl.now(), None)))
       let assert Ok(_) = send(response |> io.debug)
       state |> Ok
     }
     ["GET", key, ..rest] -> {
-      let assert Ok(_) = send(get_cmd.get_cmd(state, key) |> io.debug)
+      let response = get_cmd.get_cmd(state, key)
+      let assert Ok(_) = send(response)
       state |> Ok
     }
     _ -> {
