@@ -44,7 +44,7 @@ fn determine_rest(msg: String, size) -> List(String) {
 
 fn decode_bulk_string(msg) {
   let assert Ok(splitonrn) = string.split_once(msg, "\r\n")
-  let #(size, rest) = case splitonrn {
+  let #(_size, rest) = case splitonrn {
     #(num, rest) -> #(num |> int.parse |> result.unwrap(0), rest)
   }
   [rest |> string.trim]

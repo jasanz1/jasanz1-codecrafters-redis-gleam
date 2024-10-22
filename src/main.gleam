@@ -63,15 +63,15 @@ fn process_message(
 
   let assert Ok(state) = case msg |> list.index_map(fn(x,y){to_upper_command(x,y)}){
     [] -> state |> Ok
-    ["PING", ..rest] -> {
+    ["PING", ..] -> {
       let assert Ok(_) = send(ping_cmd.ping_cmd() |> io.debug)
       state |> Ok
     }
-    ["ECHO", echomsg, ..rest] -> {
+    ["ECHO", echomsg, ..] -> {
       let assert Ok(_) = send(echo_cmd.echo_cmd(echomsg) |> io.debug)
       state |> Ok
     }
-    ["SET", key, value, "PX", expiration, ..rest] -> {
+    ["SET", key, value, "PX", expiration, ..] -> {
       let response =
         set_cmd.set_cmd(
           state,
@@ -84,18 +84,19 @@ fn process_message(
       let assert Ok(_) = send(response |> io.debug)
       state |> Ok
     }
-    ["SET", key, value, ..rest] -> {
+    ["SET", key, value, ..] -> {
       let response = set_cmd.set_cmd(state, key, #(value, #(birl.now(), None)))
       let assert Ok(_) = send(response |> io.debug)
       state |> Ok
     }
-    ["GET", key, ..rest] -> {
+    ["GET", key, ..] -> {
       let response = get_cmd.get_cmd(state, key)
       let assert Ok(_) = send(response)
       state |> Ok
     }
     _ -> {
-      glisten.send(conn, bytes_builder.from_string("Error"))
+      let _ = glisten.send(conn, bytes_builder.from_string("Error"))
+
       state |> Error
     }
   }
