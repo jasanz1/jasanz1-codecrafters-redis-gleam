@@ -14,7 +14,7 @@ pub fn get_cmd(my_table, key) -> String {
       let expire = birl.add(set_date,duration.milli_seconds(expiration))
       case birl.compare(birl.now(), expire) {
         Gt -> encoder.encode_bulk_string(None)
-        _ -> encoder.encode_simple_string(value)
+        _ -> encoder.encode_bulk_string(Some(value))
       }
     }
   }
