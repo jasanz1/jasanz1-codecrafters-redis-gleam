@@ -15,14 +15,15 @@ pub fn config_cmd(state: State, sub_command, dir) {
 
 fn get_config(config: Set(String, List(String)), dir) {
   let lookup = case dir |> string.uppercase {
-    "DIR" -> table.lookup(config, "dir") 
-    "DBFILENAME" -> table.lookup(config, "dbfilename") 
+    "DIR" -> table.lookup(config, "dir")
+    "DBFILENAME" -> table.lookup(config, "dbfilename")
     _ -> [#("", [])]
   }
-  let assert Ok(#(config_name,config_value)) = case lookup {
+  let assert Ok(#(config_name, config_value)) = case lookup {
     [] -> #("", []) |> Ok
     [#(y, x)] -> #(y, x) |> Ok
     _ -> Nil |> Error
   }
-  [config_name,..config_value] |> encoder.encode_array(encoder.encode_bulk_string)
+  [config_name, ..config_value]
+  |> encoder.encode_array(encoder.encode_bulk_string)
 }
