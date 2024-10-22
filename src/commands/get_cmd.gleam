@@ -9,7 +9,7 @@ pub fn get_cmd(my_table, key) -> String {
     table.lookup(my_table, key)
 
   case expiration {
-    None -> value
+    None -> encoder.encode_bulk_string(Some(value))
     Some(expiration) -> {
       let expire = birl.add(set_date,duration.milli_seconds(expiration))
       case birl.compare(birl.now(), expire) {
