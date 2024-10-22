@@ -1,5 +1,4 @@
 import birl
-import birl/duration
 import carpenter/table.{type Set}
 import commands/echo_cmd
 import commands/get_cmd
@@ -62,7 +61,7 @@ fn process_message(
 ) -> State {
   let send = fn(x) { glisten.send(conn, bytes_builder.from_string(x)) }
 
-  let assert Ok(state) = case msg |> list.map(string.uppercase(_)) {
+  let assert Ok(state) = case msg |> list.index_map(fn(x,y){to_upper_command(x,y)}){
     [] -> state |> Ok
     ["PING", ..rest] -> {
       let assert Ok(_) = send(ping_cmd.ping_cmd() |> io.debug)
@@ -102,3 +101,10 @@ fn process_message(
   }
   state
 }
+
+fn to_upper_command(y,i) { 
+case i { 
+    0 | 3 -> y |> string.uppercase
+    _ -> y
+  }
+} 
