@@ -133,7 +133,7 @@ fn do_init_config(args, state:State) {
     }
     ["--dbfilename", filename, ..rest] -> {
       let _ = table.insert(state.config, [#("dbfilename", [filename])])
-    //  database_api.load_database(filename, state)
+      database_api.load_database(filename, state)
       do_init_config(rest, state)
     }
     _ -> state
