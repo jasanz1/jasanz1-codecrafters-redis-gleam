@@ -1,5 +1,7 @@
 import argv
+import database_api
 import birl
+import birl/duration
 import carpenter/table.{type Set}
 import commands/config_cmd
 import commands/echo_cmd
@@ -36,10 +38,10 @@ pub fn main() {
     |> table.read_concurrency(True)
     |> table.compression(False)
     |> table.set
-  init_config(args, config)
+   let state = init_config(args, state.State(ets, config))
   io.println("Logs from your program will appear here!")
   let assert Ok(_) =
-    glisten.handler(fn(_conn) { #(state.State(ets, config), None) }, loop)
+    glisten.handler(fn(_conn) { #(state, None) }, loop)
     |> glisten.serve(6379)
 
   process.sleep_forever()
@@ -65,40 +67,41 @@ fn process_message(
     [head, ..rest] -> #(head, rest)
     _ -> #("", [])
   }
-  io.debug(args)
   let assert Ok(state) = case command |> string.uppercase(), args {
     "", [] -> state |> Ok
     "PING", [] -> {
       let assert Ok(_) = send(ping_cmd.ping_cmd() |> io.debug)
       state |> Ok
     }
+    "GET", [key, ..] -> {
+      let response = get_cmd.get_cmd(state, key)
+      let assert Ok(_) = send(response)
+      state |> Ok
+    }
     "ECHO", [echomsg, ..] -> {
       let assert Ok(_) = send(echo_cmd.echo_cmd(echomsg) |> io.debug)
       state |> Ok
     }
+    // "KEYS", [pattern, ..] -> {
+    //  let response = keys_cmd.keys_cmd(state, pattern)
+    //   let assert Ok(_) = send(response |> io.debug)
+    //   state |> Ok
+    // }
     "SET", [key, value, ..rest] -> {
       let #(px, expiration, _rest) = case rest {
         [px, expiration, ..rest] -> #(px, expiration, rest)
         _ -> #("", "", [])
       }
       let response = case px |> string.uppercase() {
-        "PX" ->
-          set_cmd.set_cmd(
-            state,
-            key,
-            #(value, #(
-              birl.now(),
-              Some(expiration |> int.parse() |> result.unwrap(0)),
-            )),
-          )
-        _ -> set_cmd.set_cmd(state, key, #(value, #(birl.now(), None)))
+        "PX" -> {
+          let expiration = expiration |> int.parse() |> result.unwrap(0)
+          let expiration =
+            birl.add(birl.now(), duration.milli_seconds(expiration))
+          set_cmd.set_cmd(state, key, #(value, Some(expiration)))
+        }
+        _ -> set_cmd.set_cmd(state, key, #(value, None))
       }
       let assert Ok(_) = send(response |> io.debug)
-      state |> Ok
-    }
-    "GET", [key, ..] -> {
-      let response = get_cmd.get_cmd(state, key)
-      let assert Ok(_) = send(response)
       state |> Ok
     }
     "CONFIG", [sub_command, dir, ..] -> {
@@ -108,7 +111,6 @@ fn process_message(
     }
     _, _ -> {
       let _ = glisten.send(conn, bytes_builder.from_string("+Error\r\n"))
-
       state |> Error
     }
   }
@@ -117,22 +119,23 @@ fn process_message(
 
 fn init_config(
   args: argv.Argv,
-  config: Set(String, List(String)),
-) -> Set(String, List(String)) {
-  do_init_config(args.arguments, config)
+  state: State 
+) ->State{
+  do_init_config(args.arguments, state)
 }
 
-fn do_init_config(args, config) {
+fn do_init_config(args, state:State) {
   case args {
-    [] -> config
+    [] -> state
     ["--dir", filename, ..rest] -> {
-      let _ = table.insert(config, [#("dir", [filename])])
-      do_init_config(rest, config)
+      let _ = table.insert(state.config, [#("dir", [filename])])
+      do_init_config(rest, state)
     }
     ["--dbfilename", filename, ..rest] -> {
-      let _ = table.insert(config, [#("dbfilename", [filename])])
-      do_init_config(rest, config)
+      let _ = table.insert(state.config, [#("dbfilename", [filename])])
+    //  database_api.load_database(filename, state)
+      do_init_config(rest, state)
     }
-    _ -> config
+    _ -> state
   }
 }

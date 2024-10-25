@@ -12,4 +12,4 @@ type Entry =
   #(String, Expiry)
 
 type Expiry =
-  #(birl.Time, option.Option(Int))
+  option.Option(birl.Time)
