@@ -65,9 +65,10 @@ fn process_message(
     [head, ..rest] -> #(head, rest)
     _ -> #("", [])
   }
+  io.debug(args)
   let assert Ok(state) = case command |> string.uppercase(), args {
     "", [] -> state |> Ok
-    "PING", [_] -> {
+    "PING", [] -> {
       let assert Ok(_) = send(ping_cmd.ping_cmd() |> io.debug)
       state |> Ok
     }
@@ -106,7 +107,7 @@ fn process_message(
       state |> Ok
     }
     _, _ -> {
-      let _ = glisten.send(conn, bytes_builder.from_string("Error"))
+      let _ = glisten.send(conn, bytes_builder.from_string("+Error\r\n"))
 
       state |> Error
     }
