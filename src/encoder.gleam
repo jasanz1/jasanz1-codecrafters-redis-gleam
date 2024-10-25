@@ -5,7 +5,7 @@ import gleam/option.{None, Some}
 import gleam/string
 
 pub fn encode_simple_string(msg) -> String {
-  "+" <> msg |> option.unwrap("")
+  "+" <> msg |> option.unwrap("") |> "\r\n"
 }
 
 pub fn encode_bulk_string(msg) -> String {
