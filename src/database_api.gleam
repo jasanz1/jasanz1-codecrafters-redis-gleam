@@ -46,7 +46,7 @@ type Entry {
 
 pub fn load_database(database_name, state: State) {
   let assert Ok(database) =
-    database_name |> string.lowercase() |> simplifile.read
+    database_name |> string.lowercase() |> simplifile.read |> io.debug
   let assert Ok(base_data) = database |> get_header 
 }
  fn get_header(data){
