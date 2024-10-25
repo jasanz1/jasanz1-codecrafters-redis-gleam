@@ -1,4 +1,5 @@
 import carpenter/table.{type Set}
+
 import encoder
 import gleam/string
 import state.{type State}
