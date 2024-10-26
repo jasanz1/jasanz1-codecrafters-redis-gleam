@@ -1,5 +1,4 @@
 import argv
-import database_api
 import birl
 import birl/duration
 import carpenter/table.{type Set}
@@ -8,6 +7,7 @@ import commands/echo_cmd
 import commands/get_cmd
 import commands/ping_cmd
 import commands/set_cmd
+import database_api
 import decoder.{decode}
 import gleam/bit_array
 import gleam/bytes_builder
@@ -38,7 +38,7 @@ pub fn main() {
     |> table.read_concurrency(True)
     |> table.compression(False)
     |> table.set
-   let state = init_config(args, state.State(ets, config))
+  let state = init_config(args, state.State(ets, config))
   io.println("Logs from your program will appear here!")
   let assert Ok(_) =
     glisten.handler(fn(_conn) { #(state, None) }, loop)
@@ -117,14 +117,11 @@ fn process_message(
   state
 }
 
-fn init_config(
-  args: argv.Argv,
-  state: State 
-) ->State{
+fn init_config(args: argv.Argv, state: State) -> State {
   do_init_config(args.arguments, state)
 }
 
-fn do_init_config(args, state:State) {
+fn do_init_config(args, state: State) {
   case args {
     [] -> state
     ["--dir", filename, ..rest] -> {
