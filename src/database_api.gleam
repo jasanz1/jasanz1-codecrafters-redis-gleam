@@ -11,7 +11,7 @@ import gleam/string
 import simplifile
 import state.{type State}
 
-type Database {
+pub opaque type Database {
   Database(
     magic: String,
     version: Int,
@@ -52,108 +52,73 @@ type Entry {
 pub fn load_database(database_name, state: State) {
   let assert Ok(database) =
     database_name |> string.lowercase() |> simplifile.read_bits
-  let database_base_16 = database |> bit_array.base16_encode
-  let assert Ok(base_data) = database_base_16 |> get_header |> get_meta
-}
 
-fn get_header(data) {
-  let #(magic, rest) = get_chars(data, 5)
-  let #(version, rest) = get_chars(rest, 4)
-  #(
-    Database(magic, version |> int.parse |> result.unwrap(0), dict.new(), [], 0),
-    rest,
-  )
+    read_header(database)
+  |> io.debug()
+    |> read_meta
+    |> io.debug()
+  database
 }
-
-fn get_meta(input: #(Database, String)) {
-  let #(database, rest) = input
-  let assert Ok(#(_, rest)) = case rest |> get_word(1) {
-    #(["F", "A"], rest) -> #(0, rest) |> Ok
-    _ -> Error(Nil)
+fn read_meta(database) -> Result(#(Database, BitArray), String) {
+let assert Ok(#(database, bits)) = database
+ let assert Ok(#(metadata,rest)) = case bits {
+    <<0xFA , rest:bits>> -> get_metadata(rest)
+    _ -> Error("Failed at the meta")
   }
-  get_meta_subsections(rest) 
-  Ok(rest)
+  Ok(#(Database(..database, meta:metadata), rest))
+}
+fn get_metadata(bits) -> Result(#(Dict(String, String), BitArray), String) {
+  let assert Ok(#(length,bits)) = string_length_decode(bits)
+  let assert Ok(#(key,bits)) = read_bytes(bits, length)
+  
+  let assert Ok(#(length,bits)) = string_length_decode(bits)
+  let assert Ok(#(value,bits)) = read_bytes(bits, length)
+
+  todo
 }
 
-fn get_meta_subsections(data) {
-  let #(name, rest) = string_decode(data)
-  io.debug(name)
-  let #(value, rest) = string_decode(rest)
-  io.debug(value)
-  let #(peek, _) = rest |> get_word(2)
-  let #(meta, rest) = case peek {
-    ["F", "E"] -> #([], rest)
-    _ -> get_meta_subsections(rest)
+fn string_length_decode(bits) -> Result(#(Int, BitArray), String) {
+  case bits {
+    <<00:2, size:6, rest:bits>> -> #(size, rest) |> Ok
+    <<01:2, size:14, rest:bits>> -> #(size, rest) |> Ok
+    <<10:2,_:6, size:int-size(4), rest:bits>> -> #(size, rest) |> Ok
+    <<11:2,_:6, size:bytes-size(8), rest:bits>> -> todo 
+    _ -> Error("Failed at the string decode")
   }
-  #([#(name, value), ..meta], rest)
 }
-
-fn string_decode(data) {
-  let assert Ok(#(size, rest)) = parse_size(data)
-  let assert Ok(size) = {size |> int.base_parse(16)} 
-  get_chars(
-    rest,
-    size/8 
-  )
-}
-
-fn parse_size(data) -> Result(#(String, String), String) {
-  let #(size,rest_string) = get_bytes(data, 2) 
-  let size = size |> string.join("")
-  io.debug(size)
-  io.debug(rest_string)
-  case size |> bit_array.from_string{
-    <<0b00:2, size:unsigned-6,rest:bits>> ->
-      Ok(#(size|> int.to_string ,
-        // rest|> bit_array.to_string |> result.unwrap("")<>
-          rest_string))
-    // <<0b01:2, size:unsigned-big-14, rest:bits>> -> Ok(#(size, rest|> bit_array.to_string|> result.unwrap("")|> string.drop_left(1)))
-    // <<0b10:2, _ignore:6, size:unsigned-big-32, rest:bits>> ->
-    //   Ok(#(size, rest))
-    // <<0xC0, rest:bits>> -> Ok(#(8, rest))
-    // <<0xC1, rest:bits>> -> Ok(#(16, rest))
-    // <<0xC2, rest:bits>> -> Ok(#(32, rest))
-    <<0xC3, _rest:bits>> -> Error("LZF compression isn't supported")
-    _ -> Error("Invalid RDB size")
-  } |> io.debug
-}
-
-fn get_chars(data, num_of_btyes) {
-  let #(chars, rest) = get_bytes(data, num_of_btyes * 2)
-  #(chars |> base16_to_char, rest)
-}
-
-fn get_word(data, num_of_btyes) {
-  let #(chars, rest) = get_bytes(data, num_of_btyes * 2)
-  #(chars, rest)
-}
-
-fn base16_to_char(base16) {
-  let base16 =
-    [base16]
-    |> list.flatten
-    |> list.sized_chunk(2)
-    |> list.map(fn(x) { x |> string.join("") })
-  let base16 =
-    base16
-    |> list.map(fn(x) {
-      int.base_parse(x, 16)
-      |> result.unwrap(0)
-    })
-  let codepoints =
-    base16
-    |> list.map(fn(x) {
-      let assert Ok(y) = x |> string.utf_codepoint
-      y
-    })
-  codepoints |> string.from_utf_codepoints
-}
-
-fn get_bytes(data, num_of_btyes) {
-  let assert Ok(#(first_byte, rest)) = string.pop_grapheme(data)
-  let #(bytes, rest) = case num_of_btyes {
-    1 -> #([], rest)
-    _ -> get_bytes(rest, num_of_btyes - 1)
+fn read_header(database) -> Result(#(Database, BitArray), String) {
+  case database {
+    <<
+      "REDIS":utf8,
+      v0:utf8_codepoint,
+      v1:utf8_codepoint,
+      v2:utf8_codepoint,
+      v3:utf8_codepoint,
+      rest:bits,
+    >> ->
+      Ok(#(
+        Database(
+          "REDIS",
+          string.from_utf_codepoints([v0, v1, v2, v3])
+            |> int.parse()
+            |> result.unwrap(0),
+          dict.new(),
+          [],
+          0,
+        ),
+        rest,
+      ))
+    _ -> Error("Failed at the header")
   }
-  #([first_byte, ..bytes], rest)
+}
+
+fn read_char_as_bytes(bits, size) -> Result(#(BitArray, BitArray), BitArray) {
+  read_bytes(bits, size * 2)
+}
+
+fn read_bytes(bits, size) -> Result(#(BitArray, BitArray), BitArray) {
+  case bits {
+    <<bytes:bytes-size(size), rest:bits>> -> Ok(#(bytes, rest))
+    _ -> Error(bits)
+  }
 }
