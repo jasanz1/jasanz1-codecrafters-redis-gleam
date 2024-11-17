@@ -8,7 +8,7 @@ pub type State {
   State(data: Set(String, Entry), config: Set(String, List(String)))
 }
 
-type Entry =
+pub type Entry =
   #(String, Expiry)
 
 type Expiry =

@@ -1,3 +1,4 @@
+import gleam/io
 import gleam/int
 import gleam/list
 import gleam/result
@@ -15,9 +16,8 @@ pub fn decode(msg) -> List(String) {
 fn decode_array(msg: String) -> List(String) {
   let assert Ok(splitonrn) = string.split_once(msg, "\r\n")
   let #(size, rest) = case splitonrn {
-    #(num, rest) -> #(num |> int.parse |> result.unwrap(0), rest)
+    #(num, rest) -> #(num |> int.parse |> result.unwrap(0), rest) 
   }
-
   rest |> build_array(size)
 }
 
@@ -32,7 +32,7 @@ fn build_array(msg: String, size) -> List(String) {
       |> list.flatten
 
     _ -> panic
-  }
+  } 
 }
 
 fn determine_rest(msg: String, size) -> List(String) {

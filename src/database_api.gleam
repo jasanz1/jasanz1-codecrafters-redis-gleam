@@ -1,7 +1,7 @@
 import birl
+import dict
+import carpenter/table
 import gleam/bit_array
-import gleam/bytes_builder
-import gleam/dict.{type Dict}
 import gleam/int
 import gleam/io
 import gleam/list
@@ -42,50 +42,188 @@ type Data {
 
 type Entry {
   Entry(
-    exipry: Option(ExpiryType),
+    expiry: Option(ExpiryType),
     value_type: EncodeType,
     key: String,
     value: String,
   )
 }
 
+type Size {
+  Length(Int)
+  Integer(Int)
+}
 pub fn load_database(database_name, state: State) {
   let assert Ok(database) =
     database_name |> string.lowercase() |> simplifile.read_bits
-
-    read_header(database)
-  |> io.debug()
-    |> read_meta
-    |> io.debug()
-  database
+ 
+  let assert Ok(loaded_database) = database 
+  |> read_header
+  |> read_meta
+  |> read_data
+  |> read_eof
+  use data <- list.map(loaded_database.data)
+  use entry <- list.map(data.entries)
+  let expiry = case entry.expiry {
+    Some(expiry) -> case expiry {
+      Milliseconds(expiry) -> expiry
+      Seconds(expiry) -> expiry
+    }
+    None -> birl.now()
+  }
+  state.data |> table.insert([#(entry.key, #(entry.value, Some(expiry)))]) 
+  state.data |> table.lookup(entry.key) |> io.debug
 }
+  
+fn read_eof(database) -> Result(Database, String) {
+  let assert Ok(#(database, bits)) = database
+  let eight_byte_size = 8 * 8
+  case bits {
+    <<0xFF, rest:unsigned-size(eight_byte_size), _:bits>> -> Ok(Database(..database, checksum: rest))
+    _ -> Error("Failed at the EOF")
+  }
+}
+
+fn read_data(database) -> Result(#(Database, BitArray), String) {
+  let assert Ok(#(database, bits)) = database
+  let assert Ok(#(data, rest)) = get_data(bits)
+  Ok(#(Database(..database, data: data), rest))
+}
+
+fn get_data(bits) -> Result(#(List(Data), BitArray), String) {
+  case bits {
+    <<0xFE, rest:bits>> -> {
+      let assert Ok(#(index, rest)) = size_decode(rest)
+      let index = case index {
+        Length(length) -> length
+        Integer(length) -> length
+      }
+      let assert Ok(rest) = case rest {
+        <<0xFB, rest:bits>> -> rest |> Ok 
+        _ -> {
+          Error("Failed at the data: could not find start of hash size")}
+    }
+       
+      let assert Ok(#(value_hash_size, rest)) = size_decode(rest)
+      let assert Ok(#(expiry_hash_size, rest)) = size_decode(rest)
+      let value_hash_size = case value_hash_size {
+        Length(length) -> length
+        Integer(length) -> length
+      }
+      let expiry_hash_size = case expiry_hash_size {
+        Length(length) -> length
+        Integer(length) -> length
+      }
+      let assert Ok(#(entries, rest)) = get_entries(rest) 
+      let assert Ok(#(data, rest)) = get_data(rest)
+      #([Data( index: index, value_hash_size: value_hash_size, expiry_hash_size: expiry_hash_size, entries: entries), ..data], rest) |> Ok
+    }
+    <<0xFF, _:bits>> -> #([], bits) |> Ok
+    _ -> Error("Failed at the data")
+  }
+}
+
+fn get_entries(bits) -> Result(#(List(Entry), BitArray), String) {
+  let eight_byte_size = 8 * 8
+  let four_byte_size = 4 * 8
+  let #(entry, bits) = case bits {
+    <<0xFC, expiry:unsigned-little-size(eight_byte_size), rest:bits>> -> #(
+      Entry(
+        Some(Milliseconds(
+          birl.from_unix_milli(expiry),
+        )),
+        String,
+        "",
+        "",
+      ),
+      rest 
+    )
+    <<0xFD, expiry:unsigned-little-size(four_byte_size), rest:bits>> -> #(
+      Entry(
+        Some(Seconds(
+          birl.from_unix(expiry),
+        )),
+        String,
+        "",
+        "",
+      ),
+      rest,
+    )
+    _ -> #(Entry(None, String, "", ""), bits)
+  } 
+  case bits {
+    <<0x00, rest:bits>> -> {
+      let assert Ok(#(key, value, bits)) = get_key_value(rest)
+      let assert Ok(#(entries, bits)) = get_entries(bits)
+      #([Entry(..entry, key: key, value: value), ..entries], bits)
+      |> Ok 
+    }
+    <<0xFE, _:bits>> | <<0xFF, _:bits>> -> #([], bits) |> Ok
+    _ -> Error("Failed at the data: could not find start of datachunk")
+  } 
+}
+
+fn get_key_value(bits) -> Result(#(String, String, BitArray), String) {
+  let assert Ok(#(length, bits)) = size_decode(bits)
+  let assert Ok(#(key, bits)) = string_read_length(length, bits)
+  let assert Ok(#(length, bits)) = size_decode(bits)
+  let assert Ok(#(value, bits)) = string_read_length(length, bits)
+  #(key, value, bits) |> Ok
+}
+
 fn read_meta(database) -> Result(#(Database, BitArray), String) {
-let assert Ok(#(database, bits)) = database
- let assert Ok(#(metadata,rest)) = case bits {
-    <<0xFA , rest:bits>> -> get_metadata(rest)
+  let assert Ok(#(database, bits)) = database
+  let assert Ok(#(metadata, rest)) = case bits {
+    <<0xFA, rest:bits>> -> get_metadata(rest, dict.new())
     _ -> Error("Failed at the meta")
   }
-  Ok(#(Database(..database, meta:metadata), rest))
-}
-fn get_metadata(bits) -> Result(#(Dict(String, String), BitArray), String) {
-  let assert Ok(#(length,bits)) = string_length_decode(bits)
-  let assert Ok(#(key,bits)) = read_bytes(bits, length)
-  
-  let assert Ok(#(length,bits)) = string_length_decode(bits)
-  let assert Ok(#(value,bits)) = read_bytes(bits, length)
-
-  todo
+  Ok(#(Database(..database, meta: metadata), rest))
 }
 
-fn string_length_decode(bits) -> Result(#(Int, BitArray), String) {
+fn get_metadata(
+  bits,
+  metadata,
+) -> Result(#(Dict(String, String), BitArray), String) {
+  let assert Ok(#(key, value, bits)) = get_key_value(bits)
+  let assert Ok(#(metadata, bits)) = case bits {
+    <<0xFE, _rest:bits>> -> #(metadata |> dict.insert(key, value), bits) |> Ok
+    <<0xFA, rest:bits>> ->
+      get_metadata(rest, metadata |> dict.insert(key, value))
+    _ -> Error("Failed at the meta: could not find the end of the metadata")
+  }
+  Ok(#(metadata, bits))
+}
+
+
+fn string_read_length(length, bits) -> Result(#(String, BitArray), String) {
+  case length {
+    Length(length) -> {
+      let assert Ok(#(key, bits)) = read_bytes(bits, length)
+      Ok(#(key |> bit_array.to_string |> result.unwrap(""), bits))
+    }
+    Integer(length) -> {
+      let return = case bits {
+        <<integer:size(length)-unsigned-little, rest:bits>> ->
+          #(int.to_string(integer), rest) |> Ok
+        _ -> Error("Failed to parse integer")
+      }
+      return
+    }
+  }
+}
+
+fn size_decode(bits) -> Result(#(Size, BitArray), String) {
   case bits {
-    <<00:2, size:6, rest:bits>> -> #(size, rest) |> Ok
-    <<01:2, size:14, rest:bits>> -> #(size, rest) |> Ok
-    <<10:2,_:6, size:int-size(4), rest:bits>> -> #(size, rest) |> Ok
-    <<11:2,_:6, size:bytes-size(8), rest:bits>> -> todo 
+    <<00:2, size:6, rest:bits>> -> #(Length(size), rest) |> Ok
+    <<01:2, size:14, rest:bits>> -> #(Length(size), rest) |> Ok
+    <<10:2, _:6, size:int-size(4), rest:bits>> -> #(Length(size), rest) |> Ok
+    <<0xC0, rest:bits>> -> Ok(#(Integer(8), rest))
+    <<0xC1, rest:bits>> -> Ok(#(Integer(16), rest))
+    <<0xC2, rest:bits>> -> Ok(#(Integer(32), rest))
     _ -> Error("Failed at the string decode")
   }
 }
+
 fn read_header(database) -> Result(#(Database, BitArray), String) {
   case database {
     <<

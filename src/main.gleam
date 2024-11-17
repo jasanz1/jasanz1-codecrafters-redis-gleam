@@ -7,6 +7,7 @@ import commands/echo_cmd
 import commands/get_cmd
 import commands/ping_cmd
 import commands/set_cmd
+import commands/keys_cmd
 import database_api
 import decoder.{decode}
 import gleam/bit_array
@@ -82,11 +83,11 @@ fn process_message(
       let assert Ok(_) = send(echo_cmd.echo_cmd(echomsg) |> io.debug)
       state |> Ok
     }
-    // "KEYS", [pattern, ..] -> {
-    //  let response = keys_cmd.keys_cmd(state, pattern)
-    //   let assert Ok(_) = send(response |> io.debug)
-    //   state |> Ok
-    // }
+    "KEYS", [pattern, ..] -> {
+     let response = keys_cmd.keys_cmd(state, pattern)
+      let assert Ok(_) = send(response |> io.debug)
+      state |> Ok
+    }
     "SET", [key, value, ..rest] -> {
       let #(px, expiration, _rest) = case rest {
         [px, expiration, ..rest] -> #(px, expiration, rest)

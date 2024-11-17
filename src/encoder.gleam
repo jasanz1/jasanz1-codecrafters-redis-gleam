@@ -17,11 +17,10 @@ pub fn encode_bulk_string(msg) -> String {
 }
 
 pub fn encode_array(msg, element_encoder) -> String {
-  io.debug(msg)
   case msg {
     [] -> "*0\r\n"
-    rest -> {
-      let rest = rest |> list.map(fn(x) { element_encoder(Some(x)) })
+    msg -> {
+      let rest = msg |> list.map(fn(x) { element_encoder(Some(x)) })
       "*" <> int.to_string(list.length(rest)) <> "\r\n" <> rest |> string.concat
     }
   }
