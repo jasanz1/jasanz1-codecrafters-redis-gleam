@@ -1,12 +1,6 @@
 import birl
-import dict
-import carpenter/table
-import gleam/bit_array
-import gleam/int
-import gleam/io
-import gleam/list
+import gleam/dict.{type Dict}
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/string
 import simplifile
 import state.{type State}
@@ -56,32 +50,7 @@ type Size {
 pub fn load_database(database_name, state: State) {
   let assert Ok(database) =
     database_name |> string.lowercase() |> simplifile.read_bits
- 
-  let assert Ok(loaded_database) = database 
-  |> read_header
-  |> read_meta
-  |> read_data
-  |> read_eof
-  use data <- list.map(loaded_database.data)
-  use entry <- list.map(data.entries)
-  let expiry = case entry.expiry {
-    Some(expiry) -> case expiry {
-      Milliseconds(expiry) -> expiry
-      Seconds(expiry) -> expiry
-    }
-    None -> birl.now()
-  }
-  state.data |> table.insert([#(entry.key, #(entry.value, Some(expiry)))]) 
-  state.data |> table.lookup(entry.key) |> io.debug
-}
-  
-fn read_eof(database) -> Result(Database, String) {
-  let assert Ok(#(database, bits)) = database
-  let eight_byte_size = 8 * 8
-  case bits {
-    <<0xFF, rest:unsigned-size(eight_byte_size), _:bits>> -> Ok(Database(..database, checksum: rest))
-    _ -> Error("Failed at the EOF")
-  }
+
 }
 
 fn read_data(database) -> Result(#(Database, BitArray), String) {

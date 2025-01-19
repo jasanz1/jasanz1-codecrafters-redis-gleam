@@ -11,7 +11,7 @@ import commands/keys_cmd
 import database_api
 import decoder.{decode}
 import gleam/bit_array
-import gleam/bytes_builder
+import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/int
 import gleam/io
@@ -51,7 +51,7 @@ pub fn main() {
 fn loop(msg: glisten.Message(a), state: State, conn: glisten.Connection(a)) {
   let byte_message = case msg {
     glisten.Packet(x) -> x
-    _ -> bytes_builder.to_bit_array(bytes_builder.from_string("Error"))
+    _ -> bytes_tree.to_bit_array(bytes_tree.from_string("Error"))
   }
   let message = bit_array.to_string(byte_message) |> result.unwrap("") |> decode
   let state = process_message(message, state, conn)
@@ -63,7 +63,7 @@ fn process_message(
   state: State,
   conn: glisten.Connection(a),
 ) -> State {
-  let send = fn(x) { glisten.send(conn, bytes_builder.from_string(x)) }
+  let send = fn(x) { glisten.send(conn, bytes_tree.from_string(x)) }
   let #(command, args) = case msg {
     [head, ..rest] -> #(head, rest)
     _ -> #("", [])
@@ -111,7 +111,7 @@ fn process_message(
       state |> Ok
     }
     _, _ -> {
-      let _ = glisten.send(conn, bytes_builder.from_string("+Error\r\n"))
+      let _ = glisten.send(conn, bytes_tree.from_string("+Error\r\n"))
       state |> Error
     }
   }
