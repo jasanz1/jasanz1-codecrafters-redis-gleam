@@ -5,9 +5,9 @@ import carpenter/table.{type Set}
 import commands/config_cmd
 import commands/echo_cmd
 import commands/get_cmd
+import commands/keys_cmd
 import commands/ping_cmd
 import commands/set_cmd
-import commands/keys_cmd
 import database_api
 import decoder.{decode}
 import gleam/bit_array
@@ -84,7 +84,7 @@ fn process_message(
       state |> Ok
     }
     "KEYS", [pattern, ..] -> {
-     let response = keys_cmd.keys_cmd(state, pattern)
+      let response = keys_cmd.keys_cmd(state, pattern)
       let assert Ok(_) = send(response |> io.debug)
       state |> Ok
     }
